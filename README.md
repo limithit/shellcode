@@ -92,6 +92,5 @@ int main()
 }
 ```
 
-
-
+Not all executable shellcode can be used to attack execution. First, functions may not be called in the current environment, and second, and most importantly, opcode does not allow /x0. Why? Because we take advantage of the vulnerability of some dangerous functions when manufacturing stack overflow, such as strcpy, when these functions encounter /x0 as terminators when called, then opcode cannot be copied completely.
 
