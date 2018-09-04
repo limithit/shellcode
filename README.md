@@ -45,7 +45,7 @@ mov rsi, rsp
 mov al, 0x3b
 syscall
 ```
-This is not a result of disassembly of shell.c, but a result of reference to some materials, you can click to open the link
+This is not a result of disassembly of shell.c
 
 This code is not shellcode that can be executed, but we can get the opcode we need by compiling it into executable files
 ```
