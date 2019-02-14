@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 	ip->tot_len = htons (packet_size);
 	ip->id = rand ();
 	ip->frag_off = 0;
-	ip->ttl = 255;
+	//ip->ttl = 255;
 	ip->protocol = IPPROTO_ICMP;
 	ip->saddr = random();
 	ip->daddr = daddr;
@@ -100,7 +100,8 @@ int main(int argc, char **argv)
 	{
 		memset(packet + sizeof(struct iphdr) + sizeof(struct icmphdr), rand() % 255, payload_size);
 
-		ip->saddr=random();  
+		ip->saddr=random(); 
+		ip->ttl = random();  
 		icmp->checksum = 0;
 		icmp->checksum = in_cksum((unsigned short *)icmp, sizeof(struct icmphdr) + payload_size);
 
