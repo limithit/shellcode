@@ -80,7 +80,7 @@ void send_tcp(int sockfd,struct sockaddr_in *addr)
                 ip->ip_src.s_addr=random();  
                 tcp->check=check_sum((unsigned short *)tcp, 
                                 sizeof(struct tcphdr)); 
-                sendto(sockfd,buffer,head_len,0,(struct sockaddr*) &addr,sizeof(struct sockaddr_in)); 
+                sendto(sockfd,buffer,head_len,0,(struct sockaddr*)addr,sizeof(struct sockaddr_in)); 
         } 
 }
 unsigned short check_sum(unsigned short *addr,int len) 
